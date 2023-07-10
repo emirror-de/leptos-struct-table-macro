@@ -85,6 +85,11 @@ fn get_default_renderer_for_type(props: &TokenStream, type_ident: &Ident) -> Tok
                 <#component_ident #props />
             }
         }
+        "DateTime" => {
+            quote! {
+                <DefaultDateTimeUtcTableCellRenderer #props />
+            }
+        }
         "f32" | "f64" | "Decimal" | "u8" | "u16" | "u32" | "u64" | "u128" | "i8" | "i16"
         | "i32" | "i64" | "i128" => quote! {
             <DefaultNumberTableCellRenderer #props />
