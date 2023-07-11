@@ -529,6 +529,9 @@ impl ToTokens for TableComponentDeriveInput {
                 items: RwSignal<T>,
                 // #[prop(optional)] on_row_click: Option<FR>,
                 #selection_prop
+                /// Will be executed when the user double clicks a row.
+                #[prop(optional)]
+                on_row_double_click: Option<std::rc::Rc<dyn Fn(TableRowEvent<#key_type>)>>,
                 // #[prop(optional)] on_head_click: Option<FH>,
             ) -> impl IntoView
             where
@@ -591,6 +594,12 @@ impl ToTokens for TableComponentDeriveInput {
                         .unwrap_or(ColumnSort::None)
                 };
 
+                let on_dbl_click = match on_row_double_click.clone() {
+                    Some(f) => f,
+                    None => std::rc::Rc::new(move |_| {}),
+                };
+
+
                 view! { cx,
                     <#tag class=class_provider.table(&class)>
                         <#thead_renderer>
@@ -601,46 +610,54 @@ impl ToTokens for TableComponentDeriveInput {
 
                         <#tbody_renderer>
                         <Transition fallback=move || view! {cx, <tr><td colspan="4">"Loading...!"</td></tr> }>
-                            { move || {
-                                let is_selected = #selector;
+                            {
+                                let on_dbl_click = on_dbl_click.clone();
+                                move || {
+                                    let is_selected = #selector;
+                                    let on_dbl_click = on_dbl_click.clone();
 
-                                enum_items.with(cx, move |items| {
-                                    let items = items.clone();
-                                    view! { cx,
-                                        <For
-                                            each=move || items.clone()
-                                            key=|(_, item)| item.#key_field.clone()
-                                            view=move |cx, (i, item)| {
-                                                let is_sel = is_selected.clone();
+                                    enum_items.with(cx, move |items| {
+                                        let items = items.clone();
+                                    let on_dbl_click = on_dbl_click.clone();
+                                        view! { cx,
+                                            <For
+                                                each=move || items.clone()
+                                                key=|(_, item)| item.#key_field.clone()
+                                                view=move |cx, (i, item)| {
+                                                    let on_dbl_click = on_dbl_click.clone();
+                                                    let is_sel = is_selected.clone();
 
-                                                let class_signal = Signal::derive(
-                                                    cx,
-                                                    move || class_provider.clone().row(i, is_sel(Some(item.#key_field.clone())), #row_class),
-                                                );
+                                                    let class_signal = Signal::derive(
+                                                        cx,
+                                                        move || class_provider.clone().row(i, is_sel(Some(item.#key_field.clone())), #row_class),
+                                                    );
 
-                                                let is_sel = is_selected.clone();
+                                                    let is_sel = is_selected.clone();
 
-                                                let selected_signal = Signal::derive(cx, move || is_sel(Some(item.#key_field.clone())));
+                                                    let selected_signal = Signal::derive(cx, move || is_sel(Some(item.#key_field.clone())));
 
-                                                // required to be able to get `item` into on_cell_change
-                                                let row_state = store_value(cx, item.clone());
+                                                    // required to be able to get `item` into on_cell_change
+                                                    let row_state = store_value(cx, item.clone());
 
-                                                view! { cx,
-                                                    <#row_renderer
-                                                        class=class_signal
-                                                        key=item.#key_field.clone()
-                                                        index=i
-                                                        selected=selected_signal
-                                                        on_click=on_row_select
-                                                    >
-                                                        #(#cells)*
-                                                    </#row_renderer>
+
+                                                    view! { cx,
+                                                        <#row_renderer
+                                                            class=class_signal
+                                                            key=item.#key_field.clone()
+                                                            index=i
+                                                            selected=selected_signal
+                                                            on_click=on_row_select
+                                                            on_double_click=on_dbl_click
+                                                        >
+                                                            #(#cells)*
+                                                        </#row_renderer>
+                                                    }
                                                 }
-                                            }
-                                        />
-                                    }
-                                })
-                            } }
+                                            />
+                                        }
+                                    })
+                                }
+                            }
                         </Transition>
                         </#tbody_renderer>
                     </#tag>
