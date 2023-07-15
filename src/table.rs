@@ -19,12 +19,18 @@ fn get_renderer_for_field(name: &syn::Ident, field: &TableDataField, index: usiz
     let class = field.cell_class();
     let class_prop = quote! { class=class_provider.cell( # class) };
 
+    let editable_prop = if field.editable {
+        quote! { editable=true }
+    } else {
+        quote! { editable=false }
+    };
+
     let value_prop = quote! { value=item.#getter };
 
     if let Some(renderer) = &field.renderer {
         let ident = renderer.as_ident();
         quote! {
-            <#ident #format_props #value_prop #class_prop #index_prop/>
+            <#ident #format_props #value_prop #class_prop #index_prop #editable_prop/>
         }
     } else if let Type::Path(path) = &field.ty {
         let segment = path.path.segments.last().expect("not empty");
@@ -36,6 +42,7 @@ fn get_renderer_for_field(name: &syn::Ident, field: &TableDataField, index: usiz
                 &class_prop,
                 &value_prop,
                 &index_prop,
+                &editable_prop,
                 segment,
                 field,
                 &getter,
@@ -46,6 +53,7 @@ fn get_renderer_for_field(name: &syn::Ident, field: &TableDataField, index: usiz
                 &class_prop,
                 &value_prop,
                 &index_prop,
+                &editable_prop,
                 type_ident,
                 field,
                 &getter,
@@ -53,7 +61,7 @@ fn get_renderer_for_field(name: &syn::Ident, field: &TableDataField, index: usiz
         }
     } else {
         quote! {
-            <DefaultTableCellRenderer #format_props #value_prop #class_prop  />
+            <DefaultTableCellRenderer #format_props #value_prop #class_prop #editable_prop />
         }
     }
 }
@@ -90,6 +98,7 @@ fn get_default_renderer_for_field_getter(
     class_prop: &TokenStream,
     value_prop: &TokenStream,
     index_prop: &TokenStream,
+    editable_prop: &TokenStream,
     segment: &PathSegment,
     field: &TableDataField,
     getter: &TokenStream2,
@@ -100,6 +109,7 @@ fn get_default_renderer_for_field_getter(
             class_prop,
             value_prop,
             index_prop,
+            editable_prop,
             type_ident,
             field,
             getter,
@@ -113,6 +123,7 @@ fn get_default_render_for_inner_type(
     class_prop: &TokenStream,
     value_prop: &TokenStream2,
     index_prop: &TokenStream,
+    editable_prop: &TokenStream,
     type_ident: &Ident,
 ) -> TokenStream {
     match type_ident.to_string().as_str() {
@@ -121,20 +132,20 @@ fn get_default_render_for_inner_type(
             let component_ident = syn::Ident::new(&component_ident, type_ident.span());
 
             quote! {
-                <#component_ident #format_props #value_prop #class_prop #index_prop/>
+                <#component_ident #format_props #value_prop #class_prop #index_prop #editable_prop />
             }
         }
         "DateTime" => {
             quote! {
-                <DefaultDateTimeUtcTableCellRenderer #format_props #value_prop #class_prop #index_prop />
+                <DefaultDateTimeUtcTableCellRenderer #format_props #value_prop #class_prop #index_prop #editable_prop />
             }
         }
         "f32" | "f64" | "Decimal" | "u8" | "u16" | "u32" | "u64" | "u128" | "i8" | "i16"
         | "i32" | "i64" | "i128" => quote! {
-            <DefaultNumberTableCellRenderer #format_props #value_prop #class_prop #index_prop/>
+            <DefaultNumberTableCellRenderer #format_props #value_prop #class_prop #index_prop #editable_prop />
         },
         _ => quote! {
-            <DefaultTableCellRenderer #format_props #value_prop #class_prop #index_prop/>
+            <DefaultTableCellRenderer #format_props #value_prop #class_prop #index_prop #editable_prop />
         },
     }
 }
@@ -171,6 +182,7 @@ fn get_default_option_renderer(
     format_props: &TokenStream,
     class_prop: &TokenStream,
     index_prop: &TokenStream,
+    editable_prop: &TokenStream,
     type_ident: &Ident,
     field: &TableDataField,
     getter: &TokenStream2,
@@ -191,12 +203,13 @@ fn get_default_option_renderer(
                     class_prop,
                     &value_prop,
                     index_prop,
+                    editable_prop,
                     inner_type_ident,
                 );
 
                 quote! {
                     <Show when=move || { item.#getter.is_some() }
-                        fallback=move |cx: Scope| view!{cx, <DefaultTableCellRenderer value=#none_value.to_string() #class_prop #index_prop/>}
+                        fallback=move |cx: Scope| view!{cx, <DefaultTableCellRenderer value=#none_value.to_string() #class_prop #index_prop #editable_prop />}
                     >
                         #inner_renderer
                     </Show>
@@ -214,6 +227,7 @@ fn get_default_renderer_for_type(
     class_prop: &TokenStream,
     value_prop: &TokenStream,
     index_prop: &TokenStream,
+    editable_prop: &TokenStream,
     type_ident: &Ident,
     field: &TableDataField,
     getter: &TokenStream2,
@@ -223,6 +237,7 @@ fn get_default_renderer_for_type(
             format_props,
             class_prop,
             index_prop,
+            editable_prop,
             type_ident,
             field,
             getter,
@@ -233,6 +248,7 @@ fn get_default_renderer_for_type(
             class_prop,
             value_prop,
             index_prop,
+            editable_prop,
             type_ident,
         )
     }
@@ -260,8 +276,6 @@ fn get_format_props_for_field(name: &syn::Ident, field: &TableDataField) -> Toke
         quote! {}
     };
 
-    let getter = get_getter(name, &field.getter, &field.ty);
-
     let on_cell_change = {
         if let None = &field.getter {
             if let Type::Path(path) = &field.ty {
@@ -273,22 +287,18 @@ fn get_format_props_for_field(name: &syn::Ident, field: &TableDataField) -> Toke
         }
         quote! {
             on_change=move |v| {
-                row_state.update_value(|s| s.#name = v);
-                row_data_provider.update_untracked(|d| d.set_row(i, row_state.get_value()));
+                local_items_state.update_untracked(move |items| {
+                    if let Some(mut value) = items.as_mut().map(|s| s.get_mut(i)).flatten() {
+                        value.#name = v;
+                        action_set_row.dispatch((i, value.clone()));
+                    }
+                });
             }
         }
     };
 
-    let editable = if field.editable {
-        quote! { true }
-    } else {
-        quote! { false }
-    };
-
     quote! {
-        value=item.#getter
         #on_cell_change
-        editable=#editable
         #precision
         #format_string
     }
@@ -463,6 +473,7 @@ fn get_data_provider_logic(
         }
 
         impl #ident {
+            /// Returns the value to the given column name.
             pub fn get(&self, column: #column_name_enum) -> #column_value_enum {
                 match column {
                     #(#column_value_get_arms)*
@@ -471,20 +482,8 @@ fn get_data_provider_logic(
             }
         }
 
-        #[async_trait(?Send)]
-        impl TableDataProvider<#ident> for Vec<#ident> {
+        impl TableDataSorting<#ident> for Vec<#ident> {
             type ColumnName = #column_name_enum;
-
-            async fn get_rows(&self, range: std::ops::Range<usize> ) -> Vec<#ident> {
-                leptos_struct_table::get_vec_range_clamped(self, range)
-            }
-
-            fn set_row(&mut self, index: usize, row: #ident) {
-                match self.get_mut(index) {
-                    Some(r) => *r = row,
-                    None => log::warn!("Could not find row with index {index} to update."),
-                }
-            }
 
             #set_sorting_impl
         }
@@ -561,6 +560,13 @@ impl ToTokens for TableComponentDeriveInput {
                 if key_field_and_type.is_some() {
                     tokens.extend(
                         Error::new_spanned(&f.ident, "Only one field can be marked as key")
+                            .to_compile_error(),
+                    );
+                    return;
+                }
+                if f.editable {
+                    tokens.extend(
+                        Error::new_spanned(&f.ident, "A field marked as key cannot be editable.")
                             .to_compile_error(),
                     );
                     return;
@@ -660,12 +666,14 @@ impl ToTokens for TableComponentDeriveInput {
 
             #[allow(non_snake_case)]
             #[component]
-            pub fn #component_ident<T>(
+            pub fn #component_ident<D>(
                 cx: Scope,
                 /// Class name of the HTML tag.
                 #[prop(optional)] class: String,
-                /// Source signal for the table.
-                items: RwSignal<T>,
+                /// Data storage provider.
+                data_provider: StoredValue<D>,
+                /// Optional range of the data to be shown.
+                #[prop(optional)] range: Option<RwSignal<core::ops::Range<usize>>>,
                 // #[prop(optional)] on_row_click: Option<FR>,
                 #selection_prop
                 /// Will be executed when the user double clicks a row.
@@ -674,20 +682,23 @@ impl ToTokens for TableComponentDeriveInput {
                 // #[prop(optional)] on_head_click: Option<FH>,
             ) -> impl IntoView
             where
-                T: TableDataProvider<#ident, ColumnName = #column_name_enum> + Clone + PartialEq + core::fmt::Debug + 'static,
+                D: TableDataStorage<#ident> + 'static,
+                //T: TableDataProvider<#ident, ColumnName = #column_name_enum> + Clone + PartialEq + core::fmt::Debug + 'static,
                 // FR: Fn(TableRowEvent<#key_type>) + Clone + 'static,
                 // FH: Fn(FieldValue) + 'static,
             {
                 let class_provider = #classes_provider_ident::new();
 
-                let (range, set_range) = create_signal(cx, 0..1000);
+                let (range, set_range) = if let Some(r) = range {
+                    r.split()
+                } else {
+                    create_signal(cx, 0..1000)
+                };
 
                 let on_row_select = move |event: TableRowEvent<#key_type>| {
                     #selection_handler
                     // on_row_click(event);
                 };
-
-                let row_data_provider = items.clone();
 
                 let (sorting, set_sorting) = create_signal(cx, std::collections::VecDeque::<(#column_name_enum, ColumnSort)>::new());
 
@@ -712,17 +723,16 @@ impl ToTokens for TableComponentDeriveInput {
                             sorting.push_front((event.column, sort));
                         }
                     });
-
-                    items.update(move |items| { items.set_sorting(&sorting.get()) });
                 };
 
-                let enum_items = create_resource(cx,
-                    move || (range.get(), sorting.get(), items.get()),
-                    |(range, _, items)| async move {
-                        let rows = items.get_rows(range).await;
-                        rows.into_iter().enumerate().collect::<Vec<_>>()
+                let action_set_row = create_action(cx, move |(idx, row): &(usize, #ident)| {
+                    let mut provider = data_provider.get_value();
+                    let row = row.clone();
+                    let idx = idx.clone();
+                    async move {
+                        provider.set_row(idx, row).await
                     }
-                );
+                });
 
                 let sort = sorting.clone();
 
@@ -738,8 +748,43 @@ impl ToTokens for TableComponentDeriveInput {
                     None => std::rc::Rc::new(move |_| {}),
                 };
 
+                let local_items_state = create_rw_signal(cx, None::<Vec<#ident>>);
+                let fetched_items = create_local_resource(cx,
+                    move || range.get(),
+                    move |range| {
+                        let provider = data_provider.get_value();
+                        async move {
+                            let rows = match provider.get_rows(range.clone()).await {
+                                Ok(r) => r,
+                                Err(e) => {
+                                    log::error!("Could not get rows: {e}");
+                                    return vec![];
+                                },
+                            };
+                            rows
+                        }
+                    }
+                );
+
+                let memo_update_local_items_state = move || {
+                    local_items_state.set(fetched_items.read(cx));
+                };
+
+                let memo_items = create_memo(cx, move |_| {
+                    let sort = sorting.get();
+                    local_items_state.with(|items| {
+                        if let Some(it) = items {
+                            let mut sorted_items = it.clone();
+                            sorted_items.set_sorting(&sort);
+                            Some(sorted_items)
+                        } else {
+                            None
+                        }
+                    })
+                });
 
                 view! { cx,
+                    { memo_update_local_items_state }
                     <#tag class=class_provider.table(&class)>
                         <#thead_renderer>
                             <#head_row_renderer class=class_provider.head_row(#head_row_class)>
@@ -755,9 +800,10 @@ impl ToTokens for TableComponentDeriveInput {
                                     let is_selected = #selector;
                                     let on_dbl_click = on_dbl_click.clone();
 
-                                    enum_items.with(cx, move |items| {
-                                        let items = items.clone();
-                                    let on_dbl_click = on_dbl_click.clone();
+                                    let items = memo_items.get();
+                                    items.map(move |items| {
+                                        let items = items.into_iter().enumerate().collect::<Vec<_>>();
+                                        let on_dbl_click = on_dbl_click.clone();
                                         view! { cx,
                                             <For
                                                 each=move || items.clone()
@@ -774,10 +820,6 @@ impl ToTokens for TableComponentDeriveInput {
                                                     let is_sel = is_selected.clone();
 
                                                     let selected_signal = Signal::derive(cx, move || is_sel(Some(item.#key_field.clone())));
-
-                                                    // required to be able to get `item` into on_cell_change
-                                                    let row_state = store_value(cx, item.clone());
-
 
                                                     view! { cx,
                                                         <#row_renderer
