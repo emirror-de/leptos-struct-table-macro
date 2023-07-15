@@ -126,7 +126,7 @@ fn get_default_render_for_inner_type(
         }
         "DateTime" => {
             quote! {
-                <DefaultDateTimeUtcTableCellRenderer #props />
+                <DefaultDateTimeUtcTableCellRenderer #format_props #value_prop #class_prop #index_prop />
             }
         }
         "f32" | "f64" | "Decimal" | "u8" | "u16" | "u32" | "u64" | "u128" | "i8" | "i16"
