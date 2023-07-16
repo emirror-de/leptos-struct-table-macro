@@ -678,7 +678,7 @@ impl ToTokens for TableComponentDeriveInput {
                 #selection_prop
                 /// Will be executed when the user double clicks a row.
                 #[prop(optional)]
-                on_row_double_click: Option<std::rc::Rc<dyn Fn(TableRowEvent<#key_type>)>>,
+                on_row_double_click: Option<std::rc::Rc<dyn Fn(TableRowEvent<#ident, #key_type>)>>,
                 // #[prop(optional)] on_head_click: Option<FH>,
             ) -> impl IntoView
             where
@@ -820,10 +820,18 @@ impl ToTokens for TableComponentDeriveInput {
                                                     let is_sel = is_selected.clone();
 
                                                     let selected_signal = Signal::derive(cx, move || is_sel(Some(item.#key_field.clone())));
+                                                    let row_data = create_read_slice(
+                                                        cx,
+                                                        local_items_state,
+                                                        move |items| {
+                                                            items.as_ref().map(|c| c.get(i).map(|c| c.to_owned())).flatten()
+                                                        }
+                                                    );
 
                                                     view! { cx,
                                                         <#row_renderer
                                                             class=class_signal
+                                                            row_data=row_data
                                                             key=item.#key_field.clone()
                                                             index=i
                                                             selected=selected_signal
