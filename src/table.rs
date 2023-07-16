@@ -695,7 +695,7 @@ impl ToTokens for TableComponentDeriveInput {
                     create_signal(cx, 0..1000)
                 };
 
-                let on_row_select = move |event: TableRowEvent<#key_type>| {
+                let on_row_select = move |event: TableRowEvent<#ident, #key_type>| {
                     #selection_handler
                     // on_row_click(event);
                 };
