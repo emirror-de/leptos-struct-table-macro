@@ -287,10 +287,11 @@ fn get_format_props_for_field(name: &syn::Ident, field: &TableDataField) -> Toke
         }
         quote! {
             on_change=move |v| {
+                let row_key = row_key.clone();
                 local_items_state.update_untracked(move |items| {
-                    if let Some(mut value) = items.as_mut().map(|s| s.get_mut(i)).flatten() {
+                    if let Some(mut value) = items.as_mut().map(|s| s.iter_mut().find(|it| it.key() == row_key)).flatten() {
                         value.#name = v;
-                        action_set_row.dispatch((i, value.clone()));
+                        action_set_row.dispatch((row_key, value.clone()));
                     }
                 });
             }
@@ -664,6 +665,12 @@ impl ToTokens for TableComponentDeriveInput {
 
             #data_provider_logic
 
+            impl TableDataEntry<#key_type> for #ident {
+                fn key(&self) -> #key_type {
+                    self.#key_field.clone()
+                }
+            }
+
             #[allow(non_snake_case)]
             #[component]
             pub fn #component_ident<D>(
@@ -686,7 +693,7 @@ impl ToTokens for TableComponentDeriveInput {
                 // #[prop(optional)] on_head_click: Option<FH>,
             ) -> impl IntoView
             where
-                D: TableDataStorage<#ident> + 'static,
+                D: TableDataStorage<#ident, #key_type> + 'static,
                 //T: TableDataProvider<#ident, ColumnName = #column_name_enum> + Clone + PartialEq + core::fmt::Debug + 'static,
                 // FR: Fn(TableRowEvent<#key_type>) + Clone + 'static,
                 // FH: Fn(FieldValue) + 'static,
@@ -729,12 +736,12 @@ impl ToTokens for TableComponentDeriveInput {
                     });
                 };
 
-                let action_set_row = create_action(cx, move |(idx, row): &(usize, #ident)| {
+                let action_set_row = create_action(cx, move |(key, row): &(#key_type, #ident)| {
                     let mut provider = data_provider.get_value();
                     let row = row.clone();
-                    let idx = idx.clone();
+                    let key = key.clone();
                     async move {
-                        provider.set_row(idx, row).await
+                        provider.set_row(key, row).await
                     }
                 });
 
@@ -838,9 +845,14 @@ impl ToTokens for TableComponentDeriveInput {
                                                         cx,
                                                         local_items_state,
                                                         move |items| {
-                                                            items.as_ref().map(|c| c.iter().find(|it| it.#key_field == item.#key_field.clone()).map(|c| c.to_owned())).flatten()
+                                                            items
+                                                                .as_ref()
+                                                                .map(|c| c.iter().find(|it| it.#key_field == item.#key_field.clone())
+                                                                .map(|c| c.to_owned()))
+                                                                .flatten()
                                                         }
                                                     );
+                                                    let row_key = item.#key_field.clone();
 
                                                     view! { cx,
                                                         <#row_renderer
