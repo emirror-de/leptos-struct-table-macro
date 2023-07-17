@@ -679,6 +679,10 @@ impl ToTokens for TableComponentDeriveInput {
                 /// Will be executed when the user double clicks a row.
                 #[prop(optional)]
                 on_row_double_click: Option<std::rc::Rc<dyn Fn(TableRowEvent<#ident, #key_type>)>>,
+                /// If given, the current state of the table will be broadcasted here.
+                /// Listening to this signal can prevent massive requests to the actual data storage.
+                #[prop(optional)]
+                current_state: Option<WriteSignal<Vec<#ident>>>,
                 // #[prop(optional)] on_head_click: Option<FH>,
             ) -> impl IntoView
             where
@@ -770,6 +774,16 @@ impl ToTokens for TableComponentDeriveInput {
                     local_items_state.set(fetched_items.read(cx));
                 };
 
+                let broadcast_local_items_state = create_memo(cx, move |_| {
+                    if let Some(signal) = current_state {
+                        let items = match local_items_state.get() {
+                            Some(it) => it,
+                            None => return,
+                        };
+                        signal.set(items);
+                    }
+                });
+
                 let memo_items = create_memo(cx, move |_| {
                     let sort = sorting.get();
                     local_items_state.with(|items| {
@@ -850,6 +864,7 @@ impl ToTokens for TableComponentDeriveInput {
                         </Transition>
                         </#tbody_renderer>
                     </#tag>
+                    { broadcast_local_items_state }
                 }
             }
         });
