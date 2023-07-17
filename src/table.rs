@@ -838,7 +838,7 @@ impl ToTokens for TableComponentDeriveInput {
                                                         cx,
                                                         local_items_state,
                                                         move |items| {
-                                                            items.as_ref().map(|c| c.get(i).map(|c| c.to_owned())).flatten()
+                                                            items.as_ref().map(|c| c.iter().find(|it| it.#key_field == item.#key_field.clone()).map(|c| c.to_owned())).flatten()
                                                         }
                                                     );
 
