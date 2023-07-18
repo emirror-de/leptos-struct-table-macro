@@ -690,6 +690,8 @@ impl ToTokens for TableComponentDeriveInput {
                 /// Listening to this signal can prevent massive requests to the actual data storage.
                 #[prop(optional)]
                 current_state: Option<WriteSignal<Vec<#ident>>>,
+                #[prop(optional)]
+                trigger_refetch: Option<Trigger>,
                 // #[prop(optional)] on_head_click: Option<FH>,
             ) -> impl IntoView
             where
@@ -761,7 +763,10 @@ impl ToTokens for TableComponentDeriveInput {
 
                 let local_items_state = create_rw_signal(cx, None::<Vec<#ident>>);
                 let fetched_items = create_local_resource(cx,
-                    move || range.get(),
+                    move || {
+                        trigger_refetch.map(|t| t.track());
+                        range.get()
+                    },
                     move |range| {
                         let provider = data_provider.get_value();
                         async move {
