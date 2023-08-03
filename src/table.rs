@@ -690,6 +690,8 @@ impl ToTokens for TableComponentDeriveInput {
                 /// Listening to this signal can prevent massive requests to the actual data storage.
                 #[prop(optional)]
                 current_state: Option<WriteSignal<Vec<#ident>>>,
+                /// If anyone outside this component changes the dataset, this
+                /// can be used to trigger a refetch of the data.
                 #[prop(optional)]
                 trigger_refetch: Option<Trigger>,
                 // #[prop(optional)] on_head_click: Option<FH>,
@@ -763,10 +765,7 @@ impl ToTokens for TableComponentDeriveInput {
 
                 let local_items_state = create_rw_signal(cx, None::<Vec<#ident>>);
                 let fetched_items = create_local_resource(cx,
-                    move || {
-                        trigger_refetch.map(|t| t.track());
-                        range.get()
-                    },
+                    move || range.get(),
                     move |range| {
                         let provider = data_provider.get_value();
                         async move {
@@ -808,6 +807,11 @@ impl ToTokens for TableComponentDeriveInput {
                         }
                     })
                 });
+
+                let refetch_data_on_trigger = move || {
+                    trigger_refetch.map(|t| t.track());
+                    fetched_items.refetch();
+                };
 
                 view! { cx,
                     { memo_update_local_items_state }
@@ -882,6 +886,7 @@ impl ToTokens for TableComponentDeriveInput {
                         </#tbody_renderer>
                     </#tag>
                     { broadcast_local_items_state }
+                    { refetch_data_on_trigger }
                 }
             }
         });
