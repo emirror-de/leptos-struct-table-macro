@@ -694,6 +694,9 @@ impl ToTokens for TableComponentDeriveInput {
                 /// can be used to trigger a refetch of the data.
                 #[prop(optional)]
                 trigger_refetch: Option<Trigger>,
+                /// Will be display if the current table is empty.
+                #[prop(optional)]
+                on_empty: Option<View>,
                 // #[prop(optional)] on_head_click: Option<FH>,
             ) -> impl IntoView
             where
@@ -813,6 +816,25 @@ impl ToTokens for TableComponentDeriveInput {
                     fetched_items.refetch();
                 };
 
+                let view_on_empty = move || {
+                    local_items_state.with(|l| match l {
+                        Some(li) => {
+                            if li.is_empty() {
+                                if let Some(ref v) = on_empty {
+                                    view! {
+                                        cx, <>{v}</>
+                                    }
+                                } else {
+                                    view! { cx, <>""</> }
+                                }
+                            } else {
+                                    view! { cx, <>""</> }
+                            }
+                        }
+                        None => view! { cx, <>""</> },
+                    })
+                };
+
                 view! { cx,
                     { memo_update_local_items_state }
                     <#tag class=class_provider.table(&class)>
@@ -885,6 +907,7 @@ impl ToTokens for TableComponentDeriveInput {
                         </Transition>
                         </#tbody_renderer>
                     </#tag>
+                    { view_on_empty }
                     { broadcast_local_items_state }
                     { refetch_data_on_trigger }
                 }
