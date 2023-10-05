@@ -864,12 +864,12 @@ impl ToTokens for TableComponentDeriveInput {
                                                     let is_sel = is_selected.clone();
 
                                                     let class_signal = Signal::derive(
-                                                        move || class_provider.clone().row(i, is_sel(Some(item.#key_field.clone())), #row_class),
+                                                        move || class_provider.clone().row(i, is_sel.selected(Some(item.#key_field.clone())), #row_class),
                                                     );
 
                                                     let is_sel = is_selected.clone();
 
-                                                    let selected_signal = Signal::derive(move || is_sel(Some(item.#key_field.clone())));
+                                                    let selected_signal = Signal::derive(move || is_sel.selected(Some(item.#key_field.clone())));
                                                     let row_data = create_read_slice(
                                                         local_items_state,
                                                         move |items| {
